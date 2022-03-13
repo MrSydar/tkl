@@ -70,6 +70,52 @@ func (client *K360Client) GetCustomerId(name, nip string) (string, error) {
 	return foundCustomers[0].Id, nil
 }
 
+func (client *K360Client) PostCustomer(name, nip, countryCode, regon, street, postalCode, city, county string) (string, error) {
+	customerData := struct {
+		Name        string `json:"Name"`
+		Nip         string `json:"VatRegNo"`
+		CountryCode string `json:"CountryCode"`
+		Regon       string `json:"RegNo,omitempty"`
+		Street      string `json:"Address,omitempty"`
+		PostalCode  string `json:"PostalCode,omitempty"`
+		City        string `json:"City,omitempty"`
+		County      string `json:"County,omitempty"`
+	}{name, nip, countryCode, regon, street, postalCode, city, county}
+
+	customerJson, err := json.Marshal(customerData)
+	if err != nil {
+		return "", err
+	}
+
+	url := url.URL{
+		Scheme:   "https",
+		Host:     "program.360ksiegowosc.pl",
+		Path:     "api/v2/sendcustomer",
+		RawQuery: fmt.Sprintf("ApiId=%s", client.apiId),
+	}
+
+	response, err := client.post(url, string(customerJson))
+	if err != nil {
+		return "", err
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+
+	addedCustomer := struct {
+		Id string `json:"Id"`
+	}{}
+
+	err = json.Unmarshal(body, &addedCustomer)
+	if err != nil {
+		return "", err
+	}
+
+	return addedCustomer.Id, nil
+}
+
 func (client *K360Client) post(url url.URL, jsonBody string) (*http.Response, error) {
 	timestampf := time.Now().Format("20060102150405")
 

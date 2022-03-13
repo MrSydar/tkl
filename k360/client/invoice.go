@@ -1,4 +1,4 @@
-package k360
+package client
 
 type Customer struct {
 	Id string `json:"id"`

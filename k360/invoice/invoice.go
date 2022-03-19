@@ -1,4 +1,4 @@
-package client
+package invoice
 
 type Customer struct {
 	Id string `json:"id"`

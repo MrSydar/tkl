@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"mrsydar/tkl/k360/customer"
+	"mrsydar/tkl/k360/invoice"
 )
 
 type K360Client struct {
@@ -41,7 +42,10 @@ func (client *K360Client) GetCustomerId(data customer.Customer) (string, error) 
 		Id string `json:"CustomerId"`
 	}{}
 
-	unmarshalBody(*response, foundCustomers)
+	err = unmarshalBody(*response, &foundCustomers)
+	if err != nil {
+		return "", err
+	}
 
 	if len(foundCustomers) != 1 {
 		if len(foundCustomers) == 0 {
@@ -73,46 +77,29 @@ func (client *K360Client) PostCustomer(data customer.Customer) (string, error) {
 		Id string `json:"Id"`
 	}{}
 
-	unmarshalBody(*response, &addedCustomer)
+	err = unmarshalBody(*response, &addedCustomer)
+	if err != nil {
+		return "", err
+	}
 
 	return addedCustomer.Id, nil
 }
 
-// func (client *K360Client) PostInvoice(invoiceData interface{}) (string, error) {
-// 	//TODO
-// 	customerJson, err := json.Marshal(invoiceData)
-// 	if err != nil {
-// 		return "", err
-// 	}
-//
-// 	url := url.URL{
-// 		Scheme:   "https",
-// 		Host:     "program.360ksiegowosc.pl",
-// 		Path:     "api/v2/sendcustomer",
-// 		RawQuery: fmt.Sprintf("ApiId=%s", client.apiId),
-// 	}
-//
-// 	response, err := client.post(url, string(customerJson))
-// 	if err != nil {
-// 		return "", err
-// 	}
-//
-// 	body, err := ioutil.ReadAll(response.Body)
-// 	if err != nil {
-// 		return "", err
-// 	}
-//
-// 	addedCustomer := struct {
-// 		Id string `json:"Id"`
-// 	}{}
-//
-// 	err = json.Unmarshal(body, &addedCustomer)
-// 	if err != nil {
-// 		return "", err
-// 	}
-//
-// 	return addedCustomer.Id, nil
-// }
+func (client *K360Client) PostInvoice(invoiceData invoice.Invoice) error {
+	url := url.URL{
+		Scheme:   "https",
+		Host:     "program.360ksiegowosc.pl",
+		Path:     "api/v1/sendinvoice",
+		RawQuery: fmt.Sprintf("ApiId=%s", client.apiId),
+	}
+
+	_, err := client.post(url, invoiceData)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func unmarshalBody(response http.Response, body interface{}) error {
 	data, err := ioutil.ReadAll(response.Body)
@@ -156,7 +143,7 @@ func (client *K360Client) post(url url.URL, data interface{}) (*http.Response, e
 		if err != nil {
 			return nil, fmt.Errorf("bad response: code: %v", response.StatusCode)
 		} else {
-			return nil, fmt.Errorf("bad response: code: %v, body: %q", response.StatusCode, body)
+			return nil, fmt.Errorf("bad response: code: %v, body: %q", response.StatusCode, string(body))
 		}
 	}
 

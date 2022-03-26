@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"mrsydar/tkl/util"
 )
 
 type Address struct {
@@ -51,7 +49,7 @@ func parseAddress(address string) (*Address, error) {
 		return nil, fmt.Errorf("can't extract postal code")
 	}
 
-	city, err := util.GetFirstSubgroupMatch(splittedAddress[1], cityRegex)
+	city, err := getFirstSubgroupMatch(splittedAddress[1], cityRegex)
 	if err != nil {
 		return nil, fmt.Errorf("can't extract city: %v", err)
 	}

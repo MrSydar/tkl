@@ -101,20 +101,6 @@ func (client *K360Client) PostInvoice(invoiceData invoice.Invoice) error {
 	return nil
 }
 
-func unmarshalBody(response http.Response, body interface{}) error {
-	data, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(data, body)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (client *K360Client) post(url url.URL, data interface{}) (*http.Response, error) {
 	jsonBody, err := json.Marshal(data)
 	if err != nil {

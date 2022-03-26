@@ -1,11 +1,11 @@
-package util
+package taxpayer
 
 import (
 	"fmt"
 	"regexp"
 )
 
-func GetFirstSubgroupMatch(text string, re *regexp.Regexp) (string, error) {
+func getFirstSubgroupMatch(text string, re *regexp.Regexp) (string, error) {
 	match := re.FindStringSubmatch(text)
 	if len(match) < 2 {
 		return "", fmt.Errorf("no submatch found")

@@ -3,4 +3,4 @@ build:
 	go build
 
 run: build
-	./go-tkl
+	./tkl

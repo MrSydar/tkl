@@ -11,17 +11,18 @@ import (
 )
 
 type Address struct {
-	street     string
-	postalCode string
-	city       string
+	Street      string
+	PostalCode  string
+	City        string
+	Country     string
+	CountryCode string
 }
 
 type Taxpayer struct {
-	name    string
-	nip     string
-	regon   string
-	address *Address
-	country string
+	Name    string
+	Nip     string
+	Regon   string
+	Address *Address
 }
 
 func isPolishAddress(address string) bool {
@@ -54,7 +55,7 @@ func parseAddress(address string) (*Address, error) {
 		return nil, fmt.Errorf("can't extract city: %v", err)
 	}
 
-	return &Address{street, postalCode, city}, nil
+	return &Address{Street: street, PostalCode: postalCode, City: city}, nil
 }
 
 func GetTaxpayerData(nip string) (*Taxpayer, error) {
@@ -109,12 +110,12 @@ func GetTaxpayerData(nip string) (*Taxpayer, error) {
 		return nil, fmt.Errorf("can't parse address")
 	}
 
-	var country string
 	if isPolishAddress(rawAddress) {
-		country = "PL"
+		address.CountryCode = "PL"
+		address.Country = "POLSKA"
 	} else {
 		return nil, fmt.Errorf("can't confirm customer country: countries other than Poland are not supported by this application")
 	}
 
-	return &Taxpayer{name, nip, regon, address, country}, nil
+	return &Taxpayer{name, nip, regon, address}, nil
 }

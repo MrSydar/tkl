@@ -58,7 +58,7 @@ func (loader *BufferedTaxpayerDataLoader) Flush() error {
 		return nil
 	}
 
-	url := fmt.Sprintf("https://wl-api.mf.gov.pl/api/search/nip/%s?date=%d-%02d-%02d", strings.Join(loader.nipBuffer, ","), plTime.Year(), plTime.Month(), plTime.Day())
+	url := fmt.Sprintf("https://wl-api.mf.gov.pl/api/search/nips/%s?date=%d-%02d-%02d", strings.Join(loader.nipBuffer, ","), plTime.Year(), plTime.Month(), plTime.Day())
 	loader.nipBuffer = loader.nipBuffer[:0]
 
 	response, err := http.Get(url)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -26,27 +27,29 @@ type Taxpayer struct {
 }
 
 type BufferedTaxpayerDataLoader struct {
-	Data map[string]*Taxpayer
+	RetrievedTaxpayers map[string]*Taxpayer
 
 	nipBuffer []string
 }
 
 func NewBufferedTaxpayerDataLoader() *BufferedTaxpayerDataLoader {
 	return &BufferedTaxpayerDataLoader{
-		Data:      make(map[string]*Taxpayer),
-		nipBuffer: make([]string, 0, 30),
+		RetrievedTaxpayers: make(map[string]*Taxpayer),
+		nipBuffer:          make([]string, 0, 30),
 	}
 }
 
 func (loader *BufferedTaxpayerDataLoader) LoadTaxpayerData(nip string) error {
 	loader.nipBuffer = append(loader.nipBuffer, nip)
 	if len(loader.nipBuffer) == cap(loader.nipBuffer) {
-		return loader.Flush()
+		err := loader.Flush()
+		if err != nil {
+			return fmt.Errorf("flush error: %v", err)
+		}
 	}
 	return nil
 }
 
-//TODO: retry flush few times
 func (loader *BufferedTaxpayerDataLoader) Flush() error {
 	loc, _ := time.LoadLocation("Europe/Warsaw")
 	plTime := time.Now().In(loc)
@@ -86,41 +89,44 @@ func (loader *BufferedTaxpayerDataLoader) Flush() error {
 
 	for entryJson := range entriesJson {
 		subjectsJson, ok := entriesJson[entryJson].([]interface{})
-		if !ok {
-			return fmt.Errorf("can't find subjects in record: %v", entryJson)
-		}
-
-		if len(subjectsJson) != 1 {
+		if !ok || len(subjectsJson) != 1 {
+			log.Println("ignoring taxpayer: can't find subjects in entry:", entriesJson[entryJson])
 			continue
 		}
 
 		subjectJson, ok := subjectsJson[0].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("can't find subject in subjects: %v", subjectsJson)
+			log.Println("ignoring taxpayer: can't find first subject in subjects:", subjectsJson)
+			continue
 		}
 
 		name, ok := subjectJson["name"].(string)
 		if !ok || name == "" {
+			log.Println("ignoring taxpayer: can't find name in subject:", subjectJson)
 			continue
 		}
 
 		regon, ok := subjectJson["regon"].(string)
 		if !ok || regon == "" {
+			log.Println("ignoring taxpayer: can't find regon in subject:", subjectJson)
 			continue
 		}
 
 		nip, ok := subjectJson["nip"].(string)
 		if !ok || nip == "" {
+			log.Println("ignoring taxpayer: can't find nip in subject:", subjectJson)
 			continue
 		}
 
 		rawAddress, ok := subjectJson["workingAddress"].(string)
 		if !ok || rawAddress == "" {
+			log.Println("ignoring taxpayer: can't find workingAddress in subject:", subjectJson)
 			continue
 		}
 
 		address, err := parseAddress(rawAddress)
 		if err != nil {
+			log.Println("ignoring taxpayer: can't parse address:", err)
 			continue
 		}
 
@@ -128,10 +134,11 @@ func (loader *BufferedTaxpayerDataLoader) Flush() error {
 			address.CountryCode = "PL"
 			address.Country = "POLSKA"
 		} else {
+			log.Println("ignoring taxpayer: address is not polish:", rawAddress)
 			continue
 		}
 
-		loader.Data[nip] = &Taxpayer{name, nip, regon, address}
+		loader.RetrievedTaxpayers[nip] = &Taxpayer{name, nip, regon, address}
 	}
 
 	return nil

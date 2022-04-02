@@ -1,6 +1,8 @@
 package customer
 
-import "fmt"
+import (
+	"errors"
+)
 
 type Customer struct {
 	Id          string `json:"Id,omitempty"`
@@ -14,10 +16,4 @@ type Customer struct {
 	County      string `json:"County,omitempty"`
 }
 
-type NotFoundError struct {
-	Message string
-}
-
-func (e NotFoundError) Error() string {
-	return fmt.Sprintf(e.Message)
-}
+var ErrNotFound = errors.New("customer not found")

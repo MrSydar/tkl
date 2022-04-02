@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -49,11 +50,9 @@ func (client *K360Client) GetCustomerId(data customer.Customer) (string, error) 
 
 	if len(foundCustomers) != 1 {
 		if len(foundCustomers) == 0 {
-			return "", customer.NotFoundError{
-				Message: fmt.Sprintf("no customers found like %v", data),
-			}
+			return "", customer.ErrNotFound
 		} else {
-			return "", fmt.Errorf("too many customers like %v", data)
+			return "", errors.New("too many customers found")
 		}
 	}
 

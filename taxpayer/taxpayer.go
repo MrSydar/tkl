@@ -69,9 +69,9 @@ func GetTaxpayerData(nip string) (*Taxpayer, error) {
 		return nil, err
 	} else if response.StatusCode < 200 || response.StatusCode >= 300 {
 		if responseBodyByteArray, err := ioutil.ReadAll(response.Body); err != nil {
-			return nil, fmt.Errorf("bad response with code %v: %v", response.StatusCode, string(responseBodyByteArray))
-		} else {
 			return nil, fmt.Errorf("bad response with code %v", response.StatusCode)
+		} else {
+			return nil, fmt.Errorf("bad response with code %v: %v", response.StatusCode, string(responseBodyByteArray))
 		}
 	}
 

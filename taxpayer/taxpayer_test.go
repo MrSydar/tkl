@@ -3,7 +3,7 @@ package taxpayer
 import "testing"
 
 func TestGetTaxpayerDataSuccess(t *testing.T) {
-	taxpayer, err := GetTaxpayerData("7792465289")
+	taxpayer, err := GetTaxpayerData("1070023596")
 	if err != nil {
 		t.Fatalf("error was not expected: %v", err)
 	}

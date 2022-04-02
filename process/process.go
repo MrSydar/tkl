@@ -2,6 +2,7 @@ package process
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,40 +21,51 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 	defer file.Close()
 
 	reader := csv.NewReader(file)
+	_, err = reader.Read()
+	if err != nil {
+		return fmt.Errorf("failed to skip header: %v", err)
+	}
 
 	prepareNextInvoice := func() (*invoice.Invoice, error) {
 		record, err := reader.Read()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, err
+			}
 			return nil, fmt.Errorf("failed to read record: %v", err)
 		}
 
-		customerId, err := client.GetCustomerId(customer.Customer{Nip: record[2]})
-		if err != nil {
-			switch err.(type) {
-			case *customer.NotFoundError:
-				taxpayer, err := taxpayer.GetTaxpayerData(record[2])
-				if err != nil {
-					return nil, fmt.Errorf("failed to get taxpayer data with nip %v for invoice %v: %v", record[2], record[0], err)
-				}
+		var customerId string
+		if record[2] != "" {
+			customerId, err = client.GetCustomerId(customer.Customer{Nip: record[2]})
+			if err != nil {
+				if errors.Is(err, customer.ErrNotFound) {
+					taxpayer, err := taxpayer.GetTaxpayerData(record[2])
+					if err != nil {
+						return nil, fmt.Errorf("failed to get taxpayer data with nip %v for invoice %v: %v", record[2], record[0], err)
+					}
 
-				newCustomer := customer.Customer{
-					Name:        taxpayer.Name,
-					Nip:         taxpayer.Nip,
-					CountryCode: taxpayer.Address.CountryCode,
-					Regon:       taxpayer.Regon,
-					Street:      taxpayer.Address.Street,
-					PostalCode:  taxpayer.Address.PostalCode,
-					City:        taxpayer.Address.City,
-					County:      taxpayer.Address.Country,
-				}
+					newCustomer := customer.Customer{
+						Name:        taxpayer.Name,
+						Nip:         taxpayer.Nip,
+						CountryCode: taxpayer.Address.CountryCode,
+						Regon:       taxpayer.Regon,
+						Street:      taxpayer.Address.Street,
+						PostalCode:  taxpayer.Address.PostalCode,
+						City:        taxpayer.Address.City,
+						County:      taxpayer.Address.Country,
+					}
 
-				customerId, err = client.PostCustomer(newCustomer)
-				if err != nil {
-					return nil, fmt.Errorf("failed to post customer %v for invoice %v: %v", newCustomer, record[0], err)
+					customerId, err = client.PostCustomer(newCustomer)
+					if err != nil {
+						return nil, fmt.Errorf("failed to post customer %v for invoice %v: %v", newCustomer, record[0], err)
+					}
+				} else {
+					return nil, fmt.Errorf("failed to get customer id with nip %v for invoice %v: %v", record[2], record[0], err)
 				}
-			default:
-				return nil, fmt.Errorf("failed to get customer id with nip %v for invoice %v: %v", record[2], record[0], err)
 			}
+		} else {
+			customerId = record[6]
 		}
 
 		return &invoice.Invoice{
@@ -84,9 +96,10 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 	}
 
 	log.Println("Start processing invoices")
-	for invoice, err := prepareNextInvoice(); err != io.EOF; invoice, err = prepareNextInvoice() {
+	for invoice, err := prepareNextInvoice(); !errors.Is(err, io.EOF); invoice, err = prepareNextInvoice() {
 		if err != nil {
 			log.Printf("Failed to prepare invoice: %v\n", err)
+			continue
 		}
 
 		err = client.PostInvoice(*invoice)

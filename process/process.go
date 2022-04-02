@@ -48,8 +48,8 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 	}
 	defer file.Close()
 
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
+	failedInvoicesWriter := csv.NewWriter(file)
+	defer failedInvoicesWriter.Flush()
 
 	file, err = os.Open(csvPath)
 	if err != nil {
@@ -63,7 +63,7 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to skip header: %v", err)
 	}
-	writer.Write(header)
+	failedInvoicesWriter.Write(header)
 
 	taxpayerLoader := taxpayer.NewBufferedTaxpayerDataLoader()
 	csvRecordsUnknownNipInvoices := make([][]string, 0)
@@ -95,7 +95,7 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 					continue
 				} else {
 					log.Printf("failed to get customer id with nip %v for invoice %v: %v\n", nip, record[0], err)
-					writer.Write(record)
+					failedInvoicesWriter.Write(record)
 					continue
 				}
 			}
@@ -108,7 +108,7 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 		err = client.PostInvoice(invoice)
 		if err != nil {
 			log.Printf("failed to post invoice %v: %v\n", invoice, err)
-			writer.Write(record)
+			failedInvoicesWriter.Write(record)
 		}
 	}
 
@@ -124,6 +124,7 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 	for _, record := range csvRecordsUnknownNipInvoices {
 		if taxpayerLoader.RetrievedTaxpayers[record[2]] == nil {
 			log.Printf("failed to get taxpayer info with nip %v for invoice %v\n", record[2], record[0])
+			failedInvoicesWriter.Write(record)
 		} else {
 			taxpayer := taxpayerLoader.RetrievedTaxpayers[record[2]]
 
@@ -141,6 +142,7 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 			customerId, err := client.PostCustomer(newCustomer)
 			if err != nil {
 				log.Printf("failed to post customer %v for invoice %v: %v", newCustomer, record[0], err)
+				failedInvoicesWriter.Write(record)
 				continue
 			}
 
@@ -149,6 +151,7 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 			err = client.PostInvoice(invoice)
 			if err != nil {
 				log.Printf("failed to post invoice %v: %v\n", invoice, err)
+				failedInvoicesWriter.Write(record)
 			}
 		}
 	}

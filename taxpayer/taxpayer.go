@@ -87,10 +87,16 @@ func (loader *BufferedTaxpayerDataLoader) Flush() error {
 		return fmt.Errorf("can't find entries in result: %v", resultJson)
 	}
 
-	for entryJson := range entriesJson {
-		subjectsJson, ok := entriesJson[entryJson].([]interface{})
+	for _, entryRaw := range entriesJson {
+		entryJson, ok := entryRaw.(map[string]interface{})
+		if !ok || len(entryJson) == 0 {
+			log.Println("ignoring taxpayer: can't parse entry:", entryRaw)
+			continue
+		}
+
+		subjectsJson, ok := entryJson["subjects"].([]interface{})
 		if !ok || len(subjectsJson) != 1 {
-			log.Println("ignoring taxpayer: can't find subjects in entry:", entriesJson[entryJson])
+			log.Println("ignoring taxpayer: can't find subjects in entry:", entryJson)
 			continue
 		}
 

@@ -25,6 +25,118 @@ type Taxpayer struct {
 	Address *Address
 }
 
+type BufferedTaxpayerDataLoader struct {
+	Data map[string]*Taxpayer
+
+	nipBuffer []string
+}
+
+func NewBufferedTaxpayerDataLoader() *BufferedTaxpayerDataLoader {
+	return &BufferedTaxpayerDataLoader{
+		Data:      make(map[string]*Taxpayer),
+		nipBuffer: make([]string, 0, 30),
+	}
+}
+
+func (loader *BufferedTaxpayerDataLoader) LoadTaxpayerData(nip string) error {
+	loader.nipBuffer = append(loader.nipBuffer, nip)
+	if len(loader.nipBuffer) == cap(loader.nipBuffer) {
+		return loader.Flush()
+	}
+	return nil
+}
+
+//TODO: retry flush few times
+func (loader *BufferedTaxpayerDataLoader) Flush() error {
+	loc, _ := time.LoadLocation("Europe/Warsaw")
+	plTime := time.Now().In(loc)
+
+	if len(loader.nipBuffer) == 0 {
+		return nil
+	}
+
+	url := fmt.Sprintf("https://wl-api.mf.gov.pl/api/search/nip/%s?date=%d-%02d-%02d", strings.Join(loader.nipBuffer, ","), plTime.Year(), plTime.Month(), plTime.Day())
+	loader.nipBuffer = loader.nipBuffer[:0]
+
+	response, err := http.Get(url)
+	if err != nil {
+		return err
+	} else if response.StatusCode < 200 || response.StatusCode >= 300 {
+		if responseBodyByteArray, err := ioutil.ReadAll(response.Body); err != nil {
+			return fmt.Errorf("bad response with code %v", response.StatusCode)
+		} else {
+			return fmt.Errorf("bad response with code %v: %v", response.StatusCode, string(responseBodyByteArray))
+		}
+	}
+
+	taxpayersJson := make(map[string]interface{})
+	if err = json.NewDecoder(response.Body).Decode(&taxpayersJson); err != nil {
+		return fmt.Errorf("can't decode response body: %v", err)
+	}
+
+	resultJson, ok := taxpayersJson["result"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("can't find result in taxpayer data: %v", taxpayersJson)
+	}
+
+	entriesJson, ok := resultJson["entries"].([]interface{})
+	if !ok {
+		return fmt.Errorf("can't find entries in result: %v", resultJson)
+	}
+
+	for entryJson := range entriesJson {
+		subjectsJson, ok := entriesJson[entryJson].([]interface{})
+		if !ok {
+			return fmt.Errorf("can't find subjects in record: %v", entryJson)
+		}
+
+		if len(subjectsJson) != 1 {
+			continue
+		}
+
+		subjectJson, ok := subjectsJson[0].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("can't find subject in subjects: %v", subjectsJson)
+		}
+
+		name, ok := subjectJson["name"].(string)
+		if !ok || name == "" {
+			continue
+		}
+
+		regon, ok := subjectJson["regon"].(string)
+		if !ok || regon == "" {
+			continue
+		}
+
+		nip, ok := subjectJson["nip"].(string)
+		if !ok || nip == "" {
+			continue
+		}
+
+		rawAddress, ok := subjectJson["workingAddress"].(string)
+		if !ok || rawAddress == "" {
+			continue
+		}
+
+		address, err := parseAddress(rawAddress)
+		if err != nil {
+			continue
+		}
+
+		if isPolishAddress(rawAddress) {
+			address.CountryCode = "PL"
+			address.Country = "POLSKA"
+		} else {
+			continue
+		}
+
+		loader.Data[nip] = &Taxpayer{name, nip, regon, address}
+	}
+
+	return nil
+}
+
 func isPolishAddress(address string) bool {
 	lowerAddress := strings.ToLower(address)
 	for _, city := range plCities {

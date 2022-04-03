@@ -1,6 +1,7 @@
 package process
 
 import (
+	"bufio"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -41,7 +42,22 @@ func getInvoiceFromRecord(record []string, customerId string) invoice.Invoice {
 	}
 }
 
-func ProcessInvoices(client client.K360Client, csvPath string) error {
+func countRecords(path string) (int, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	count := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		count++
+	}
+	return count - 1, scanner.Err()
+}
+
+func ProcessInvoices(client client.K360Client, csvPath string, progressCallback func(message string, recordsNumber, currentRecord int)) error {
 	file, err := os.Create("skipped_invoices.csv")
 	if err != nil {
 		return fmt.Errorf("failed to create file for skipped invoices: %v", err)
@@ -50,6 +66,11 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 
 	failedInvoicesWriter := csv.NewWriter(file)
 	defer failedInvoicesWriter.Flush()
+
+	numberOfRecords, err := countRecords(csvPath)
+	if err != nil {
+		return fmt.Errorf("failed to count lines in file: %v", err)
+	}
 
 	file, err = os.Open(csvPath)
 	if err != nil {
@@ -70,7 +91,10 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 
 	log.Println("start processing invoices without nip")
 
+	currRecord := 0
 	for {
+		currRecord++
+
 		record, err := reader.Read()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -78,6 +102,8 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 			}
 			return fmt.Errorf("failed to read record: %v", err)
 		}
+
+		progressCallback(fmt.Sprintf("Invoice № %v", record[0]), numberOfRecords, currRecord)
 
 		nip := record[2]
 
@@ -122,6 +148,9 @@ func ProcessInvoices(client client.K360Client, csvPath string) error {
 	log.Println("start processing invoices with nip")
 
 	for _, record := range csvRecordsUnknownNipInvoices {
+		currRecord++
+		progressCallback(fmt.Sprintf("Invoice № %v", record[0]), numberOfRecords, currRecord)
+
 		if taxpayerLoader.RetrievedTaxpayers[record[2]] == nil {
 			log.Printf("failed to get taxpayer info with nip %v for invoice %v\n", record[2], record[0])
 			failedInvoicesWriter.Write(record)

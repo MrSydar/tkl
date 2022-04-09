@@ -4,7 +4,7 @@ import (
 	"log"
 	"mrsydar/tkl/k360/client"
 	"mrsydar/tkl/process"
-	"time"
+	"os"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -62,12 +62,13 @@ func main() {
 		}()
 	}
 
-	loggingLabel := widget.NewLabel("")
-	loggingLabelWriter := LabelWriter{loggingLabel, 500, time.Now()}
-	log.SetOutput(&loggingLabelWriter)
+	logFile, err := os.Create("output.log")
+	if err != nil {
+		log.Fatalf("can't create/truncate errors.log file: %v", err)
+	}
+	defer logFile.Close()
 
-	scrollContainer := container.NewVScroll(loggingLabel)
-	scrollContainer.SetMinSize(fyne.NewSize(0, 300))
+	log.SetOutput(logFile)
 
 	content := container.New(layout.NewVBoxLayout(),
 		apiIdInput,
@@ -76,11 +77,9 @@ func main() {
 		csvFileChooseButton,
 		progressBar,
 		runButton,
-		scrollContainer,
 	)
 
 	window.SetContent(content)
 
-	window.Resize(fyne.NewSize(800, 600))
 	window.ShowAndRun()
 }
